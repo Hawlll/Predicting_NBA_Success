@@ -117,6 +117,14 @@ def calculate_pie_scores(data):
                                       (team_blk * 0.5) - team_pf - team_tov)
         
         if team_pie_total_denominator <= 0:
+            for _, player in team_data.iterrows():
+                player_result = player.copy()
+                player_result['PIE_Score'] = np.nan
+                player_result['Player_Events_Numerator'] = np.nan
+                player_result['Team_Total_Events_Denominator'] = np.nan
+                if 'ws' in player: player_result['ws'] = player['ws']
+                if 'bpm' in player: player_result['bpm'] = player['bpm']
+                results_list.append(player_result)
             continue
             
         for _, player in team_data.iterrows():
@@ -162,10 +170,11 @@ def calculate_career_pie_scores(player_season_pies):
 
     career_data = player_season_pies.groupby('player').agg(**agg_dict).reset_index()
 
-    career_data['All_Time_PIE_Score'] = (
-        career_data['career_player_events_numerator'] /
-        career_data['career_team_total_events_denominator']
-    ) * 100
+    career_data['All_Time_PIE_Score'] = np.where(
+        career_data['career_team_total_events_denominator'] > 0,
+        (career_data['career_player_events_numerator'] / career_data['career_team_total_events_denominator']) * 100,
+        np.nan
+    )
 
     player_season_min_max = player_season_pies.groupby('player')['season'].agg(['min', 'max']).reset_index()
     career_data = pd.merge(career_data, player_season_min_max, on='player', how='left')
@@ -190,16 +199,36 @@ def get_nba_player_impact_data(file_path, start_year=None, end_year=None):
     if all_time_pie_scores.empty:
         return pd.DataFrame()
 
-    final_df_columns = ['player']
-    if 'highest_ws' in all_time_pie_scores.columns:
-        final_df_columns.append('highest_ws')
-    if 'highest_bpm' in all_time_pie_scores.columns:
-        final_df_columns.append('highest_bpm')
-    final_df_columns.append('All_Time_PIE_Score')
-
-    final_df = all_time_pie_scores[final_df_columns].sort_values(
+    # --- START OF FIX ---
+    # Sort the DataFrame by the numeric PIE score FIRST
+    all_time_pie_scores_sorted = all_time_pie_scores.sort_values(
         'All_Time_PIE_Score', ascending=False
     ).reset_index(drop=True)
+
+    # Create the formatted 'Overall PIE' column from the sorted data
+    all_time_pie_scores_sorted['Overall PIE'] = all_time_pie_scores_sorted['All_Time_PIE_Score'].round(4).apply(
+        lambda x: f"{x:.4f}" if pd.notna(x) else 'N/A'
+    )
+
+    # Define the columns for the final display DataFrame
+    final_df_columns = ['player']
+    if 'highest_ws' in all_time_pie_scores_sorted.columns: # Check on the sorted df
+        final_df_columns.append('highest_ws')
+    if 'highest_bpm' in all_time_pie_scores_sorted.columns: # Check on the sorted df
+        final_df_columns.append('highest_bpm')
+    final_df_columns.append('Overall PIE') # This is the formatted string column
+    
+    # Select the desired columns from the already sorted DataFrame
+    final_df = all_time_pie_scores_sorted[final_df_columns]
+
+    # Rename columns for presentation
+    display_column_names = {
+        'player': 'Player',
+        'highest_ws': 'Highest WS',
+        'highest_bpm': 'Highest BPM',
+    }
+    final_df = final_df.rename(columns=display_column_names)
+    # --- END OF FIX ---
 
     return final_df
 
@@ -214,6 +243,12 @@ def main():
     
     if not ultimate_df.empty:
         print(f"\n--- Ultimate Player Impact Data ({analysis_start_year}-{analysis_end_year}) ---")
+        
+        highest_player_name = ultimate_df.iloc[0]['Player']
+        highest_pie_score_formatted = ultimate_df.iloc[0]['Overall PIE'] 
+        print(f"\nThe highest PIE player in the {analysis_start_year}-{analysis_end_year} range is: {highest_player_name} with an Overall PIE of {highest_pie_score_formatted}.")
+        print("--------------------------------------------------------------------------------")
+
         print(ultimate_df.to_string(index=False))
         print("\n---------------------------------------------------------")
     else:
