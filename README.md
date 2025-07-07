@@ -30,7 +30,7 @@ This project aims to develop a machine learning model to forecast a college play
   - [College Basketball Statistics (Kaggle)](https://www.kaggle.com/datasets/adityak2003/college-basketball-players-20092021?select=CollegeBasketballPlayers2009-2021.csv) (2009–2021)
 
 - **Targets (NBA Performance Metrics):**  
-  - [NBA Player Statistics (Kaggle)](https://www.kaggle.com/datasets](https://www.kaggle.com/code/robertsunderhaft/predicting-the-nba-mvp/input)) (1982–2022)  
+  - [NBA Player Statistics (Kaggle)](https://www.kaggle.com/code/robertsunderhaft/predicting-the-nba-mvp/input) (1982–2022)  
   - [NBA All-Star Appearances (Kaggle)](https://www.kaggle.com/datasets/rodneycarroll78/nba-stats-1980-2024?select=All-Star+Selections.csv) (1980–2024)
 
 ---
