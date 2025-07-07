@@ -30,8 +30,8 @@ This project aims to develop a machine learning model to forecast a college play
   - [College Basketball Statistics (Kaggle)](https://www.kaggle.com/datasets/adityak2003/college-basketball-players-20092021?select=CollegeBasketballPlayers2009-2021.csv) (2009–2021)
 
 - **Targets (NBA Performance Metrics):**  
-  - [NBA Player Statistics (Kaggle)]([https://www.kaggle.com/datasets](https://www.kaggle.com/code/robertsunderhaft/predicting-the-nba-mvp/input)) (1982–2022)  
-  - [NBA All-Star Appearances]([https://www.kaggle.com/datasets](https://www.kaggle.com/datasets/rodneycarroll78/nba-stats-1980-2024?select=All-Star+Selections.csv)) (1980–2024)
+  - [NBA Player Statistics (Kaggle)](https://www.kaggle.com/datasets](https://www.kaggle.com/code/robertsunderhaft/predicting-the-nba-mvp/input)) (1982–2022)  
+  - [NBA All-Star Appearances (Kaggle)](https://www.kaggle.com/datasets/rodneycarroll78/nba-stats-1980-2024?select=All-Star+Selections.csv) (1980–2024)
 
 ---
 
@@ -86,7 +86,7 @@ We are aware of the following potential biases in our study:
 
 ## 📚 Citations & Inspirations
 
-- SuperAnnotate. ["Bias in machine learning: Types and examples"](https://blog.superannotate.com/types-of-bias-in-machine-learning/)
+- SuperAnnotate. "Bias in machine learning: Types and examples"
 - Michael MacKelvie. *NBA Teams Are Drafting Worse - Why?* (YouTube Analysis)
 - *Moneyball* (Film inspiring sports analytics)
 - The Riot Report. *More Than 50% Of First Round Picks Are Busts*
@@ -98,7 +98,7 @@ We are aware of the following potential biases in our study:
 ## 📈 Goals
 
 - Build a predictive model for NBA success based on college stats  
-- Analyze misalignment between model predictions and actual draft picks  
+- Analyze misalignment between model predictions and actual NBA performance 
 - Identify undervalued players and potential draft inefficiencies  
 
 > *This project combines the love for basketball with the power of machine learning—bringing data science to the draft war room.*
