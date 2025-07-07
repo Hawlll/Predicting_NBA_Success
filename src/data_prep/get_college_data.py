@@ -27,4 +27,3 @@ def get_college_data(college_fp, draft_fp, start_year, end_year, college_metrics
     merged_df = pd.merge(college_df, drafted_df, on="PLAYER", how="inner")
 
     return merged_df.dropna().drop_duplicates(subset=["PLAYER"])
-
