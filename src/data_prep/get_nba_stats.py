@@ -223,9 +223,9 @@ def get_nba_player_impact_data(file_path, start_year=None, end_year=None):
 
     # Rename columns for presentation
     display_column_names = {
-        'player': 'Player',
-        'highest_ws': 'Highest WS',
-        'highest_bpm': 'Highest BPM',
+        'player': 'PLAYER',
+        'highest_ws': 'Highest_WS',
+        'highest_bpm': 'Highest_BPM',
     }
     final_df = final_df.rename(columns=display_column_names)
     # --- END OF FIX ---
