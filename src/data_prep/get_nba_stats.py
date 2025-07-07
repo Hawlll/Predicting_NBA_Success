@@ -231,28 +231,3 @@ def get_nba_player_impact_data(file_path, start_year=None, end_year=None):
     # --- END OF FIX ---
 
     return final_df
-
-def main():
-    dataset_file_path = 'src/NBA/data/NBA_Dataset.csv'
-    analysis_start_year = 2014
-    analysis_end_year = 2019
-
-    print(f"--- Starting NBA Player Impact Analysis from {dataset_file_path} ---")
-    
-    ultimate_df = get_nba_player_impact_data(dataset_file_path, analysis_start_year, analysis_end_year)
-    
-    if not ultimate_df.empty:
-        print(f"\n--- Ultimate Player Impact Data ({analysis_start_year}-{analysis_end_year}) ---")
-        
-        highest_player_name = ultimate_df.iloc[0]['Player']
-        highest_pie_score_formatted = ultimate_df.iloc[0]['Overall PIE'] 
-        print(f"\nThe highest PIE player in the {analysis_start_year}-{analysis_end_year} range is: {highest_player_name} with an Overall PIE of {highest_pie_score_formatted}.")
-        print("--------------------------------------------------------------------------------")
-
-        print(ultimate_df.to_string(index=False))
-        print("\n---------------------------------------------------------")
-    else:
-        print("No data could be generated for the specified range. Please check the file path and data content.")
-
-if __name__ == "__main__":
-    main()
