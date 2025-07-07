@@ -1,121 +1,104 @@
 import pandas as pd
 import numpy as np
 
-def filter_data_by_years(data, start_year=2014, end_year=2019):    
-    # Check if szn col
+def filter_data_by_years(data, start_year=None, end_year=None):
+    if start_year is None and end_year is None:
+        return data
+
     if 'season' not in data.columns:
-        return None
+        return data
+
     data['szn_numeric'] = pd.to_numeric(data['season'], errors='coerce')
-    filtered_data = data[(data['szn_numeric'] >= start_year) & (data['szn_numeric'] <= end_year)]
     
-    return filtered_data
-
-def load_data():
-    try:
-        # UPDATE IF NEEDED
-        data = pd.read_csv('src/NBA/data/Player Totals.csv')
-
-        # 2014-2019 only
-        filtered_data = filter_data_by_years(data, start_year=2014, end_year=2019)
+    if start_year is not None:
+        data = data[data['szn_numeric'] >= start_year]
+    if end_year is not None:
+        data = data[data['szn_numeric'] <= end_year]
         
+    return data
+
+def load_data(file_path, start_year=None, end_year=None):
+    try:
+        data = pd.read_csv(file_path)
+        
+        unique_cols = ['player', 'season', 'team_id'] 
+        
+        data.drop_duplicates(subset=unique_cols, keep='first', inplace=True)
+
+        filtered_data = filter_data_by_years(data, start_year=start_year, end_year=end_year)
         if filtered_data is None or len(filtered_data) == 0:
             return None
-            
         return filtered_data
-        
-    except:
-        print("Oops! Could not find the NBA data file")
+    except FileNotFoundError:
+        return None
+    except Exception as e:
         return None
 
-def show_available_stats(data):
-    for i, column_name in enumerate(data.columns, 1):
-        print(f"{i:2d}. {column_name}")
+def check_required_stats(data):
+    # Core stats needed for PIE calculation (per-game versions)
+    needed_per_g_stats = [
+        "pts_per_g", 'fg_per_g', 'fga_per_g', 'ft_per_g', 'fta_per_g', 
+        'ast_per_g', 'stl_per_g', 'blk_per_g', 'tov_per_g', 'pf_per_g', 'g'
+    ]
     
-    print(f"\nTotal columns: {len(data.columns)}")
-
-def check_required_stats(data):    
-    # stats needed
-    needed_stats = {
-        "pts": "Points scored",
-        'fg': "Field goals made", 
-        'fga': 'Field goals attempted',
-        'ft': 'Free throws made',
-        'fta': 'Free throws attempted',
-        'ast': 'Assists',
-        'stl': 'Steals',
-        'blk': 'Blocks',
-        'tov': 'Turnovers',
-        'pf': 'Personal fouls'
-    }
+    missing_core_stats = []
+    for stat_code in needed_per_g_stats:
+        if stat_code not in data.columns:
+            missing_core_stats.append(stat_code)
+            
+    rebound_found = False
+    if 'orb_per_g' in data.columns and 'drb_per_g' in data.columns:
+        rebound_found = True
+    elif 'trb_per_g' in data.columns:
+        rebound_found = True
     
-    # Check if each stat exists in our data
-    missing_stats = []
-    found_stats = []
-    
-    for stat_code, description in needed_stats.items():
-        if stat_code in data.columns:
-            found_stats.append(stat_code)
-            print(f"Found {stat_code} ({description})")
-        else:
-            missing_stats.append(stat_code)
-            print(f"Missing {stat_code} ({description})")
-    
-    # Check for rebound data
-    print("\nChecking for rebound statistics...")
-    if 'orb' in data.columns and 'drb' in data.columns:
-        print("Found orb (offensive rebounds) and drb (defensive rebounds)")
-        found_stats.extend(['orb', 'drb'])
-    elif 'trb' in data.columns:
-        print("Found trb (total rebounds) - we can estimate offensive/defensive split")
-        found_stats.append('trb')
-    else:
-        print("No rebound data found")
-        missing_stats.append('rebounds')
-    
-    # Return whether we have everything we need
-    if missing_stats:
-        print(f"\nWe're missing these important stats: {missing_stats}")
+    if not rebound_found:
+        missing_core_stats.append('rebounds (orb_per_g/drb_per_g or trb_per_g)')
+        
+    if missing_core_stats:
+        print(f"Error: Missing the following *core* required statistics in the data: {', '.join(missing_core_stats)}")
         return False
-    else:
-        print(f"\nExcellent! We have all the stats needed for PIE calculation")
-        return True
+        
+    return True
 
 def calculate_pie_scores(data):
-    """Calculate PIE scores using team-based denominator (the method that worked)"""
-    print("\nCalculating PIE scores using team-based calculation...")
-    print("PIE = (Player Events) / (Team Events) * 100")
-    print("Using the FULL NBA PIE formula with negative contributions")
-    
-    # Get all the stats we need and convert them to numbers
     data = data.copy()
     
-    # Clean the numeric columns
-    stats_columns = ['pts', 'fg', 'fga', 'ft', 'fta', 'ast', 'stl', 'blk', 'tov', 'pf', 'orb', 'drb', 'trb', 'g']
-    for col in stats_columns:
-        if col in data.columns:
-            data[col] = pd.to_numeric(data[col], errors='coerce').fillna(0)
-    
-    # Handle rebounds
-    if 'orb' in data.columns and 'drb' in data.columns:
-        print("Using separate offensive and defensive rebound data")
-        data['oreb'] = data['orb']
-        data['dreb'] = data['drb']
+    per_g_stats = {
+        'pts_per_g': 'pts', 'fg_per_g': 'fg', 'fga_per_g': 'fga',
+        'ft_per_g': 'ft', 'fta_per_g': 'fta', 'ast_per_g': 'ast',
+        'stl_per_g': 'stl', 'blk_per_g': 'blk', 'tov_per_g': 'tov',
+        'pf_per_g': 'pf'
+    }
+
+    # Convert per-game stats to total stats for PIE calculation
+    for pg_col, total_col in per_g_stats.items():
+        if pg_col in data.columns and 'g' in data.columns:
+            data[total_col] = pd.to_numeric(data[pg_col], errors='coerce').fillna(0) * pd.to_numeric(data['g'], errors='coerce').fillna(0)
+        else:
+            data[total_col] = 0 # Default to 0 if per-game stat or games played is missing
+
+    # Handle rebounds, converting per-game to total
+    if 'orb_per_g' in data.columns and 'drb_per_g' in data.columns and 'g' in data.columns:
+        data['oreb'] = pd.to_numeric(data['orb_per_g'], errors='coerce').fillna(0) * pd.to_numeric(data['g'], errors='coerce').fillna(0)
+        data['dreb'] = pd.to_numeric(data['drb_per_g'], errors='coerce').fillna(0) * pd.to_numeric(data['g'], errors='coerce').fillna(0)
+    elif 'trb_per_g' in data.columns and 'g' in data.columns:
+        total_trb = pd.to_numeric(data['trb_per_g'], errors='coerce').fillna(0) * pd.to_numeric(data['g'], errors='coerce').fillna(0)
+        data['oreb'] = total_trb * 0.25
+        data['dreb'] = total_trb * 0.75
     else:
-        data['oreb'] = data['trb'] * 0.25  # About 25% offensive
-        data['dreb'] = data['trb'] * 0.75  # About 75% defensive
-        print("Estimating offensive/defensive rebounds from total rebounds")
+        data['oreb'] = 0
+        data['dreb'] = 0
     
-    # Calculate PIE for each player
     results_list = []
     
-    # Group by team and season to calculate team totals
-    for (team, season), team_data in data.groupby(['tm', 'season']):
+    if 'team_id' not in data.columns or 'season' not in data.columns or 'player' not in data.columns:
+        return None
+
+    for (team, season), team_data in data.groupby(['team_id', 'season']):
         if len(team_data) == 0:
             continue
             
-        print(f"Processing {team} {season} ({len(team_data)} players)")
-        
-        # Calculate team totals using FULL PIE formula (with negatives)
         team_pts = team_data['pts'].sum()
         team_fgm = team_data['fg'].sum()
         team_fga = team_data['fga'].sum()
@@ -129,185 +112,112 @@ def calculate_pie_scores(data):
         team_pf = team_data['pf'].sum()
         team_tov = team_data['tov'].sum()
         
-        # Team PIE denominator: PTS + FGM + FTM - FGA - FTA + DREB + (0.5×OREB) + AST + STL + (0.5×BLK) - PF - TOV
-        team_pie_total = (team_pts + team_fgm + team_ftm - team_fga - team_fta + 
-                         team_dreb + (team_oreb * 0.5) + team_ast + team_stl + 
-                         (team_blk * 0.5) - team_pf - team_tov)
+        team_pie_total_denominator = (team_pts + team_fgm + team_ftm - team_fga - team_fta +
+                                      team_dreb + (team_oreb * 0.5) + team_ast + team_stl +
+                                      (team_blk * 0.5) - team_pf - team_tov)
         
-        if team_pie_total <= 0:
-            print(f"  Warning: {team} {season} has zero or negative team total")
+        if team_pie_total_denominator <= 0:
             continue
-        
-        # Calculate PIE for each player on this team
+            
         for _, player in team_data.iterrows():
-            # Player's PIE numerator using EXACT NBA formula
-            player_pie_events = (player['pts'] + player['fg'] + player['ft'] - 
-                               player['fga'] - player['fta'] + player['dreb'] + 
-                               (player['oreb'] * 0.5) + player['ast'] + player['stl'] + 
-                               (player['blk'] * 0.5) - player['pf'] - player['tov'])
+            player_pie_numerator = (player['pts'] + player['fg'] + player['ft'] -
+                                    player['fga'] - player['fta'] + player['dreb'] +
+                                    (player['oreb'] * 0.5) + player['ast'] + player['stl'] +
+                                    (player['blk'] * 0.5) - player['pf'] - player['tov'])
             
-            # PIE score = (Player events / Team events) * 100
-            pie_score = (player_pie_events / team_pie_total) * 100
+            pie_score = (player_pie_numerator / team_pie_total_denominator) * 100
             
-            # Calculate per-game stats
-            games = max(player['g'], 1)  # Avoid division by zero
-            ppg = player['pts'] / games
-            apg = player['ast'] / games
-            rpg = (player['dreb'] + player['oreb']) / games
-            
-            # Add to results
             player_result = player.copy()
             player_result['PIE_Score'] = pie_score
-            player_result['Player_Events'] = player_pie_events
-            player_result['Team_Total_Events'] = team_pie_total
-            player_result['Points_Per_Game'] = ppg
-            player_result['Assists_Per_Game'] = apg
-            player_result['Rebounds_Per_Game'] = rpg
+            player_result['Player_Events_Numerator'] = player_pie_numerator
+            player_result['Team_Total_Events_Denominator'] = team_pie_total_denominator
             
+            if 'ws' in player:
+                player_result['ws'] = player['ws']
+            if 'bpm' in player:
+                player_result['bpm'] = player['bpm']
+
             results_list.append(player_result)
     
-    # Convert back to DataFrame
     results = pd.DataFrame(results_list)
-    
     if len(results) == 0:
         return None
     
-    print(f"   Processed {len(results):,} player seasons")
-    print(f"   Average PIE score: {results['PIE_Score'].mean():.2f}%")
-    print(f"   Highest PIE score: {results['PIE_Score'].max():.2f}%")
-    print(f"   Lowest PIE score: {results['PIE_Score'].min():.2f}%")
-    
     return results
 
-def show_top_performers(data_with_pie):
-    """Display ALL players with their PIE scores (complete list)"""
-    
-    # Calculate some basic statistics
-    average_pie = data_with_pie['PIE_Score'].mean()
-    median_pie = data_with_pie['PIE_Score'].median()
-    max_pie = data_with_pie['PIE_Score'].max()
-    min_pie = data_with_pie['PIE_Score'].min()
-    
-    print(f"Total player seasons: {len(data_with_pie):,}")
-    print(f"Average PIE Score: {average_pie:.2f}")
-    print(f"Median PIE Score: {median_pie:.2f}")
-    print(f"Highest PIE Score: {max_pie:.2f}")
-    print(f"Lowest PIE Score: {min_pie:.2f}")
-    
-    # Sort all players by PIE score (highest to lowest)
-    all_players_ranked = data_with_pie.sort_values('PIE_Score', ascending=False).copy()
-    
-    print(f"\n🏆 ALL PLAYERS RANKED BY PIE SCORE ({len(all_players_ranked):,} total):")
-    print("=" * 90)
-    print(f"{'Rank':<6} {'Player':<25} {'Season':<7} {'PIE':<8} {'PPG':<6} {'APG':<6} {'Team':<4}")
-    print("-" * 90)
-    
-    for rank, (_, player_season) in enumerate(all_players_ranked.iterrows(), 1):
-        player_name = str(player_season['player'])[:24]  # Keep names readable
-        season = str(int(player_season['season'])) if 'season' in data_with_pie.columns else "N/A"
-        pie_score = player_season['PIE_Score']
-        points_per_game = player_season['Points_Per_Game']
-        assists_per_game = player_season['Assists_Per_Game']
-        team = str(player_season['tm'])[:3] if 'tm' in data_with_pie.columns else "N/A"
-        
-        print(f"{rank:<6} {player_name:<25} {season:<7} {pie_score:<8.1f} "
-              f"{points_per_game:<6.1f} {assists_per_game:<6.1f} {team:<4}")
-    
-    # Also show the best season for each unique player
-    print(f"\n🌟 BEST SEASON FOR EACH UNIQUE PLAYER:")
-    print("=" * 90)
-    
-    # Find the best season for each player
-    best_seasons_per_player = all_players_ranked.loc[all_players_ranked.groupby('player')['PIE_Score'].idxmax()]
-    best_seasons_per_player = best_seasons_per_player.sort_values('PIE_Score', ascending=False)
-    
-    print(f"{'Rank':<6} {'Player':<25} {'Best Season':<12} {'PIE':<8} {'PPG':<6} {'Team':<4}")
-    print("-" * 90)
-    
-    for rank, (_, player_best) in enumerate(best_seasons_per_player.iterrows(), 1):
-        player_name = str(player_best['player'])[:24]
-        season = str(int(player_best['season'])) if 'season' in data_with_pie.columns else "N/A"
-        pie_score = player_best['PIE_Score']
-        points_per_game = player_best['Points_Per_Game']
-        team = str(player_best['tm'])[:3] if 'tm' in data_with_pie.columns else "N/A"
-        
-        print(f"{rank:<6} {player_name:<25} {season:<12} {pie_score:<8.1f} {points_per_game:<6.1f} {team:<4}")
-    
-    print(f"\nComplete ranking shows:")
-    print(f"{len(all_players_ranked):,} total individual player seasons")
-    print(f"{len(best_seasons_per_player):,} unique players who played during 2014-2019")
-    
-    return all_players_ranked, best_seasons_per_player
+def calculate_career_pie_scores(player_season_pies):
+    if player_season_pies is None or player_season_pies.empty:
+        return pd.DataFrame()
 
-def save_results_to_files(data_with_pie, all_players_ranked, best_unique_players):
+    agg_dict = {
+        'career_player_events_numerator': ('Player_Events_Numerator', 'sum'),
+        'career_team_total_events_denominator': ('Team_Total_Events_Denominator', 'sum'),
+        'total_games': ('g', 'sum')
+    }
     
-    
-    # Check which columns actually exist
-    available_columns = all_players_ranked.columns.tolist()
-    print(f"Available columns: {available_columns}")
-    
-    # Select columns that definitely exist
-    basic_columns = ['player', 'season', 'PIE_Score', 'Points_Per_Game', 'Assists_Per_Game']
-    
-    # Add optional columns if they exist
-    optional_columns = ['tm', 'Rebounds_Per_Game', 'Player_Events', 'Team_Total_Events']
-    
-    columns_to_save = basic_columns.copy()
-    for col in optional_columns:
-        if col in available_columns:
-            columns_to_save.append(col)
-    
-    print(f"Saving these columns: {columns_to_save}")
-    
-    # Save complete results for 2014-2019 (this is the full dataset)
-    complete_results_file = "NBA_PIE_2014_2019_Complete_Rankings.csv"
-    complete_summary = all_players_ranked[columns_to_save].copy()
-    complete_summary.to_csv(complete_results_file, index=False)
-    print(f"✓ ALL players ranked by PIE saved to: {complete_results_file}")
-    
-    # Save best season per unique player (cleaner for analysis)
-    unique_players_file = "NBA_PIE_2014_2019_Best_Players_Only.csv"
-    unique_players_summary = best_unique_players[columns_to_save].copy()
-    unique_players_summary.to_csv(unique_players_file, index=False)
-    print(f"✓ Best season per player saved to: {unique_players_file}")
-    
-    # Save the raw complete data with all original columns (for advanced analysis)
-    raw_data_file = "NBA_PIE_2014_2019_Raw_Data.csv"
-    data_with_pie.to_csv(raw_data_file, index=False)
-    print(f" Raw data with all columns saved to: {raw_data_file}")
-    
-    print(f"   '{complete_results_file}' - Every player ranked by PIE ({len(all_players_ranked):,} seasons)")
-    print(f"   '{unique_players_file}' - Best season per player ({len(best_unique_players):,} unique players)")
-    print(f"   '{raw_data_file}' - Complete dataset with all original NBA stats")
+    if 'ws' in player_season_pies.columns:
+        agg_dict['highest_ws'] = ('ws', 'max')
+    if 'bpm' in player_season_pies.columns:
+        agg_dict['highest_bpm'] = ('bpm', 'max')
 
-def main():
-    
-    print("=" * 50)
-    
-    # Step 1: Load and filter the data for 2014-2019
-    nba_data = load_data()
+    career_data = player_season_pies.groupby('player').agg(**agg_dict).reset_index()
+
+    career_data['All_Time_PIE_Score'] = (
+        career_data['career_player_events_numerator'] /
+        career_data['career_team_total_events_denominator']
+    ) * 100
+
+    player_season_min_max = player_season_pies.groupby('player')['season'].agg(['min', 'max']).reset_index()
+    career_data = pd.merge(career_data, player_season_min_max, on='player', how='left')
+    career_data.rename(columns={'min': 'First_Season', 'max': 'Last_Season'}, inplace=True)
+
+    return career_data
+
+def get_nba_player_impact_data(file_path, start_year=None, end_year=None):
+    nba_data = load_data(file_path, start_year, end_year)
     if nba_data is None:
-        return
+        return pd.DataFrame()
     
-    # Step 2: Show what data we have
-    show_available_stats(nba_data)
-    
-    # Step 3: Check if we have everything we need
     if not check_required_stats(nba_data):
-        return
+        return pd.DataFrame()
     
-    # Step 4: Calculate PIE scores
     results = calculate_pie_scores(nba_data)
     if results is None:
-         return
+        return pd.DataFrame()
+
+    all_time_pie_scores = calculate_career_pie_scores(results)
     
-    # Step 5: Show ALL players ranked by PIE score
-    all_players_ranked, best_players = show_top_performers(results)
+    if all_time_pie_scores.empty:
+        return pd.DataFrame()
+
+    final_df_columns = ['player']
+    if 'highest_ws' in all_time_pie_scores.columns:
+        final_df_columns.append('highest_ws')
+    if 'highest_bpm' in all_time_pie_scores.columns:
+        final_df_columns.append('highest_bpm')
+    final_df_columns.append('All_Time_PIE_Score')
+
+    final_df = all_time_pie_scores[final_df_columns].sort_values(
+        'All_Time_PIE_Score', ascending=False
+    ).reset_index(drop=True)
+
+    return final_df
+
+def main():
+    dataset_file_path = 'src/NBA/data/NBA_Dataset.csv'
+    analysis_start_year = 2014
+    analysis_end_year = 2019
+
+    print(f"--- Starting NBA Player Impact Analysis from {dataset_file_path} ---")
     
-    # Step 6: Save everything to files
-    save_results_to_files(results, all_players_ranked, best_players)
+    ultimate_df = get_nba_player_impact_data(dataset_file_path, analysis_start_year, analysis_end_year)
     
-    print(f"\n2014-2019 PIE")
+    if not ultimate_df.empty:
+        print(f"\n--- Ultimate Player Impact Data ({analysis_start_year}-{analysis_end_year}) ---")
+        print(ultimate_df.to_string(index=False))
+        print("\n---------------------------------------------------------")
+    else:
+        print("No data could be generated for the specified range. Please check the file path and data content.")
 
 if __name__ == "__main__":
     main()
