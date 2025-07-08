@@ -13,4 +13,4 @@ def get_allstar_apps(allstar_fp, start_year, end_year):
     # Rename player column to PLAYER
     allstar_apps = allstar_apps.rename(columns={"player": "PLAYER"})
     
-    return allstar_apps
+    return allstar_apps.drop_duplicates(subset=["PLAYER"])
